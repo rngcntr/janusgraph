@@ -59,6 +59,7 @@ public class JanusGraphLocalQueryOptimizerStrategy extends AbstractTraversalStra
         //If this is a compute graph then we can't apply local traversal optimisation at this stage.
         final StandardJanusGraph janusGraph = graph instanceof StandardJanusGraphTx ? ((StandardJanusGraphTx) graph).getGraph() : (StandardJanusGraph) graph;
         final boolean useMultiQuery = !TraversalHelper.onGraphComputer(traversal) && janusGraph.getConfiguration().useMultiQuery();
+        final boolean limitBatchSize = janusGraph.getConfiguration().limitBatchSize();
 
         /*
                 ====== MULTIQUERY COMPATIBLE STEPS ======
@@ -92,9 +93,7 @@ public class JanusGraphLocalQueryOptimizerStrategy extends AbstractTraversalStra
                 vertexStep.setLimit(0, QueryUtil.mergeHighLimits(limit, vertexStep.getHighLimit()));
             }
 
-            if (useMultiQuery) {
-                vertexStep.setUseMultiQuery(true);
-            }
+            vertexStep.setUseMultiQuery(useMultiQuery, limitBatchSize);
 
             if (janusGraph.getConfiguration().batchPropertyPrefetching()) {
                 applyBatchPropertyPrefetching(traversal, vertexStep, nextStep, janusGraph.getConfiguration().getTxVertexCacheSize());
@@ -117,9 +116,7 @@ public class JanusGraphLocalQueryOptimizerStrategy extends AbstractTraversalStra
                 //We cannot fold in orders or ranges since they are not local
             }
 
-            if (useMultiQuery) {
-                propertiesStep.setUseMultiQuery(true);
-            }
+            propertiesStep.setUseMultiQuery(useMultiQuery, limitBatchSize);
         });
 
         /*
@@ -141,7 +138,7 @@ public class JanusGraphLocalQueryOptimizerStrategy extends AbstractTraversalStra
                 HasStepFolder.foldInRange(vertexStep, JanusGraphTraversalUtil.getNextNonIdentityStep(vertexStep), localTraversal, null);
 
 
-                unfoldLocalTraversal(traversal,localStep,localTraversal,vertexStep,useMultiQuery);
+                unfoldLocalTraversal(traversal,localStep,localTraversal,vertexStep,useMultiQuery, limitBatchSize);
             }
 
             if (localStart instanceof PropertiesStep) {
@@ -155,7 +152,7 @@ public class JanusGraphLocalQueryOptimizerStrategy extends AbstractTraversalStra
                 HasStepFolder.foldInRange(propertiesStep, JanusGraphTraversalUtil.getNextNonIdentityStep(propertiesStep), localTraversal, null);
 
 
-                unfoldLocalTraversal(traversal,localStep,localTraversal,propertiesStep,useMultiQuery);
+                unfoldLocalTraversal(traversal,localStep,localTraversal,propertiesStep,useMultiQuery, limitBatchSize);
             }
 
         });
@@ -190,7 +187,7 @@ public class JanusGraphLocalQueryOptimizerStrategy extends AbstractTraversalStra
 
     private static void unfoldLocalTraversal(final Traversal.Admin<?, ?> traversal,
                                              LocalStep<?,?> localStep, Traversal.Admin localTraversal,
-                                             MultiQueriable vertexStep, boolean useMultiQuery) {
+                                             MultiQueriable vertexStep, boolean useMultiQuery, boolean limitBatchSize) {
         assert localTraversal.asAdmin().getSteps().size() > 0;
         if (localTraversal.asAdmin().getSteps().size() == 1) {
             //Can replace the entire localStep by the vertex step in the outer traversal
@@ -198,9 +195,7 @@ public class JanusGraphLocalQueryOptimizerStrategy extends AbstractTraversalStra
             vertexStep.setTraversal(traversal);
             TraversalHelper.replaceStep(localStep, vertexStep, traversal);
 
-            if (useMultiQuery) {
-                vertexStep.setUseMultiQuery(true);
-            }
+            vertexStep.setUseMultiQuery(useMultiQuery, limitBatchSize);
         }
     }
 

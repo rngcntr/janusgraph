@@ -17,6 +17,7 @@ package org.janusgraph.graphdb.tinkerpop.optimize.step;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.NoOpBarrierStep;
 import org.janusgraph.core.*;
 import org.janusgraph.graphdb.query.BaseQuery;
 import org.janusgraph.graphdb.query.JanusGraphPredicateUtils;
@@ -47,6 +48,7 @@ public class JanusGraphPropertiesStep<E> extends PropertiesStep<E> implements Ha
 
     private boolean initialized = false;
     private boolean useMultiQuery = false;
+    private boolean limitBatchSize = false;
     private Map<JanusGraphVertex, Iterable<? extends JanusGraphProperty>> multiQueryResults = null;
     private QueryProfiler queryProfiler = QueryProfiler.NO_OP;
 
@@ -58,8 +60,9 @@ public class JanusGraphPropertiesStep<E> extends PropertiesStep<E> implements Ha
     }
 
     @Override
-    public void setUseMultiQuery(boolean useMultiQuery) {
+    public void setUseMultiQuery(boolean useMultiQuery, boolean limitBatchSize) {
         this.useMultiQuery = useMultiQuery;
+        this.limitBatchSize = limitBatchSize;
     }
 
     private <Q extends BaseVertexQuery> Q makeQuery(Q query) {
@@ -89,7 +92,17 @@ public class JanusGraphPropertiesStep<E> extends PropertiesStep<E> implements Ha
 
         if (!starts.hasNext()) throw FastNoSuchElementException.instance();
         final List<Traverser.Admin<Element>> elements = new ArrayList<>();
-        starts.forEachRemaining(elements::add);
+        int maxBatchSize = Integer.MAX_VALUE;
+        if (limitBatchSize && getPreviousStep() instanceof NoOpBarrierStep) {
+            maxBatchSize = ((NoOpBarrierStep) getPreviousStep()).getMaxBarrierSize();
+        }
+        for (long i = 0; i < maxBatchSize; ++i) {
+            if (starts.hasNext()) {
+                elements.add(starts.next());
+            } else {
+                break;
+            }
+        }
         starts.add(elements.iterator());
         assert elements.size() > 0;
 

@@ -266,6 +266,12 @@ public class GraphDatabaseConfiguration {
                     "performance improvement if there is a non-trivial latency to the backend.",
             ConfigOption.Type.MASKABLE, false);
 
+    public static final ConfigOption<Boolean> LIMIT_BATCH_SIZE = new ConfigOption<>(QUERY_NS,"limit-batch-size",
+            "Configure a maximum batch size for queries against the storage backend. This can be used to ensure " +
+            "responsiveness if batches tend to grow very large. The used batch size is equivalent to the " +
+            "barrier size of a preceding barrier() step. If a step has no preceding barrier(), no limit is used.",
+            ConfigOption.Type.MASKABLE, false);
+
     public static final ConfigOption<String> INDEX_SELECT_STRATEGY = new ConfigOption<>(QUERY_NS, "index-select-strategy",
             String.format("Name of the index selection strategy or full class name. Following shorthands can be used: <br>" +
                     "- `%s` (Try all combinations of index candidates and pick up optimal one)<br>" +
@@ -1172,6 +1178,7 @@ public class GraphDatabaseConfiguration {
     private Boolean propertyPrefetching;
     private boolean adjustQueryLimit;
     private Boolean useMultiQuery;
+    private boolean limitBatchSize;
     private boolean optimizerBackendAccess;
     private IndexSelectionStrategy indexSelectionStrategy;
     private Boolean batchPropertyPrefetching;
@@ -1259,6 +1266,10 @@ public class GraphDatabaseConfiguration {
 
     public boolean useMultiQuery() {
         return useMultiQuery;
+    }
+
+    public boolean limitBatchSize() {
+        return limitBatchSize;
     }
 
     public boolean optimizerBackendAccess() {
@@ -1385,6 +1396,7 @@ public class GraphDatabaseConfiguration {
 
         propertyPrefetching = configuration.get(PROPERTY_PREFETCHING);
         useMultiQuery = configuration.get(USE_MULTIQUERY);
+        limitBatchSize = configuration.get(LIMIT_BATCH_SIZE);
         indexSelectionStrategy = Backend.getImplementationClass(configuration, configuration.get(INDEX_SELECT_STRATEGY),
             REGISTERED_INDEX_SELECTION_STRATEGIES);
         optimizerBackendAccess = configuration.get(OPTIMIZER_BACKEND_ACCESS);

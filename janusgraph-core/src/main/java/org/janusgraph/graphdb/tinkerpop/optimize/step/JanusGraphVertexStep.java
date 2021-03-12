@@ -14,6 +14,7 @@
 
 package org.janusgraph.graphdb.tinkerpop.optimize.step;
 
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.NoOpBarrierStep;
 import org.janusgraph.core.BaseVertexQuery;
 import org.janusgraph.core.JanusGraphElement;
 import org.janusgraph.core.JanusGraphMultiVertexQuery;
@@ -56,6 +57,7 @@ public class JanusGraphVertexStep<E extends Element> extends VertexStep<E> imple
 
     private boolean initialized = false;
     private boolean useMultiQuery = false;
+    private boolean limitBatchSize = false;
     private boolean batchPropertyPrefetching = false;
     private Map<JanusGraphVertex, Iterable<? extends JanusGraphElement>> multiQueryResults = null;
     private QueryProfiler queryProfiler = QueryProfiler.NO_OP;
@@ -70,8 +72,9 @@ public class JanusGraphVertexStep<E extends Element> extends VertexStep<E> imple
     }
 
     @Override
-    public void setUseMultiQuery(boolean useMultiQuery) {
+    public void setUseMultiQuery(boolean useMultiQuery, boolean limitBatchSize) {
         this.useMultiQuery = useMultiQuery;
+        this.limitBatchSize = limitBatchSize;
     }
 
     public void setBatchPropertyPrefetching(boolean batchPropertyPrefetching) {
@@ -104,9 +107,17 @@ public class JanusGraphVertexStep<E extends Element> extends VertexStep<E> imple
                 throw FastNoSuchElementException.instance();
             }
             final List<Traverser.Admin<Vertex>> vertices = new ArrayList<>();
-            starts.forEachRemaining(v -> {
-                vertices.add(v);
-            });
+            int maxBatchSize = Integer.MAX_VALUE;
+            if (limitBatchSize && getPreviousStep() instanceof NoOpBarrierStep) {
+                maxBatchSize = ((NoOpBarrierStep) getPreviousStep()).getMaxBarrierSize();
+            }
+            for (int i = 0; i < maxBatchSize; ++i) {
+                if (starts.hasNext()) {
+                    vertices.add(starts.next());
+                } else {
+                    break;
+                }
+            }
             starts.add(vertices.iterator());
             initializeMultiQuery(vertices);
         }
